@@ -1,30 +1,10 @@
-/**
- * jwt.js — Demo JWT helpers (client-side DEMO only, NOT production auth)
- *
- * A JSON Web Token has three Base64URL-encoded parts joined by dots:
- *   header.payload.signature
- *
- * - header:    {"alg":"HS256","typ":"JWT"}        (algorithm + token type)
- * - payload:   {"sub","name","iat","exp", ...}    (the "claims")
- * - signature: HMAC-SHA256( base64url(header) + "." + base64url(payload),
- *                            DEMO_SECRET )
- *
- * The signature is what makes a JWT tamper-evident: if anyone edits the
- * payload, the recomputed signature no longer matches. In a real system
- * the secret lives ONLY on the server; here it is a hard-coded demo secret
- * in the browser on purpose, so the token can be created and verified
- * entirely on the client. That is exactly why this is a demo and must
- * never be used for real authentication.
- */
+// Demo JWT helpers. Client-side demo only, not real auth.
+// A token is header.payload.signature, signed with HMAC-SHA256.
+// The secret below is a hard-coded demo secret, visible in the browser.
 
-// Demo secret — visible in the browser by design. NOT a real secret.
 const DEMO_SECRET = 'comp3123-lab10-demo-secret';
 
-// ---------------------------------------------------------------------------
-// Base64URL helpers
-// ---------------------------------------------------------------------------
 export function base64UrlEncode(input) {
-  // input: string (UTF-8) -> base64url string (no padding, URL-safe chars)
   const base64 = btoa(unescape(encodeURIComponent(input)));
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
@@ -35,9 +15,6 @@ export function base64UrlDecode(input) {
   return decodeURIComponent(escape(atob(padded)));
 }
 
-// ---------------------------------------------------------------------------
-// Signing / verifying (Web Crypto API, HMAC-SHA256)
-// ---------------------------------------------------------------------------
 async function hmacSha256(message, secret) {
   const key = await crypto.subtle.importKey(
     'raw',
@@ -51,7 +28,6 @@ async function hmacSha256(message, secret) {
     key,
     new TextEncoder().encode(message),
   );
-  // ArrayBuffer -> base64url
   const bytes = new Uint8Array(signature);
   let binary = '';
   bytes.forEach((b) => {
@@ -60,7 +36,6 @@ async function hmacSha256(message, secret) {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** Create a demo JWT for `user`. `expiresInSeconds` defaults to 300 (5 min). */
 export async function createDemoToken(user, expiresInSeconds = 300) {
   const header = { alg: 'HS256', typ: 'JWT' };
   const now = Math.floor(Date.now() / 1000);
@@ -69,8 +44,8 @@ export async function createDemoToken(user, expiresInSeconds = 300) {
     name: user.name,
     email: user.email,
     role: 'student',
-    iat: now, // issued at (seconds since epoch)
-    exp: now + expiresInSeconds, // expires at
+    iat: now,
+    exp: now + expiresInSeconds,
   };
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
@@ -78,7 +53,6 @@ export async function createDemoToken(user, expiresInSeconds = 300) {
   return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
-/** Split a token and decode header + payload. Returns null on bad format. */
 export function decodeToken(token) {
   if (!token) return null;
   const parts = token.split('.');
@@ -95,22 +69,16 @@ export function decodeToken(token) {
   }
 }
 
-/** True when the payload's `exp` claim is in the past. */
 export function isTokenExpired(payload) {
   if (!payload || typeof payload.exp !== 'number') return true;
   return Math.floor(Date.now() / 1000) >= payload.exp;
 }
 
-/** Seconds left until the token expires (0 or negative when expired). */
 export function secondsUntilExpiry(payload) {
   if (!payload || typeof payload.exp !== 'number') return 0;
   return payload.exp - Math.floor(Date.now() / 1000);
 }
 
-/**
- * Verify a token: correct 3-part shape, decodable payload, valid
- * signature, and not expired. Returns { valid, reason }.
- */
 export async function verifyDemoToken(token) {
   const decoded = decodeToken(token);
   if (!decoded) return { valid: false, reason: 'Malformed token (expected header.payload.signature).' };
